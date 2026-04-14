@@ -1,0 +1,101 @@
+{
+  "theme": "light",
+  "archetype": "4 (Swiss & High-Contrast)",
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "IBM Plex Sans",
+    "base_size": "16px",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl tracking-tight font-bold",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-semibold",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm text-slate-600",
+      "label": "text-xs font-semibold tracking-widest uppercase text-slate-500"
+    }
+  },
+  "colors": {
+    "primary": {
+      "default": "#2563EB",
+      "hover": "#1D4ED8",
+      "foreground": "#FFFFFF"
+    },
+    "background": {
+      "default": "#F8FAFC",
+      "paper": "#FFFFFF"
+    },
+    "text": {
+      "primary": "#0F172A",
+      "secondary": "#475569",
+      "disabled": "#94A3B8"
+    },
+    "sla": {
+      "green": { "bg": "#D1FAE5", "text": "#065F46", "border": "#34D399" },
+      "yellow": { "bg": "#FEF3C7", "text": "#92400E", "border": "#FBBF24" },
+      "red": { "bg": "#FEE2E2", "text": "#991B1B", "border": "#F87171" }
+    },
+    "border": "#E2E8F0"
+  },
+  "spacing": {
+    "container_padding": "p-4 sm:p-6 lg:p-8",
+    "bento_gap": "gap-4 sm:gap-6",
+    "section_gap": "gap-12 sm:gap-16 lg:gap-24"
+  },
+  "components": {
+    "surfaces": {
+      "dashboard_card": "bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 p-5",
+      "glass_header": "bg-white/80 backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-50",
+      "map_overlay": "bg-white/90 backdrop-blur-md border border-slate-200 rounded-lg shadow-lg p-4"
+    },
+    "inputs": {
+      "form_field": "border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all",
+      "upload_zone": "border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:bg-slate-50 transition-colors flex flex-col items-center justify-center gap-4 cursor-pointer"
+    },
+    "status_badge": "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider"
+  },
+  "layouts": {
+    "officer_dashboard": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 items-start",
+    "reporting_flow": "max-w-xl mx-auto flex flex-col gap-6",
+    "ticket_list": "flex flex-col gap-3"
+  },
+  "motion": {
+    "hover": "transition-all duration-200 ease-in-out",
+    "page_enter": "animate-in fade-in slide-in-from-bottom-4 duration-500",
+    "list_stagger": "animate-in fade-in slide-in-from-bottom-2 duration-300"
+  },
+  "media": {
+    "images": {
+      "hero_background": {
+        "url": "https://static.prod-images.emergentagent.com/jobs/fdad9098-60aa-47f5-ae43-4362a3d2e2c5/images/3a2a27f5e37795b480cb8f52a7e0e395e805bbe8638de052e339ab1883a32f9e.png",
+        "description": "Aerial view of clean city intersection, use for public transparency map landing or main hero."
+      },
+      "map_abstract": {
+        "url": "https://static.prod-images.emergentagent.com/jobs/fdad9098-60aa-47f5-ae43-4362a3d2e2c5/images/31f49a0ada41ff95bc1ebf081cf603a3674286dbb7eee2cb706c112ab195ce87.png",
+        "description": "Abstract data node map, use for analytics dashboard hero or background texture."
+      },
+      "pothole_sample": {
+        "url": "https://images.unsplash.com/photo-1741996951019-a041d0477c82?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwzfHxicm9rZW4lMjByb2FkJTIwcG90aG9sZSUyMHN0cmVldHxlbnwwfHx8fDE3NzYxODUxMzN8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Sample photo for a reported issue (Citizen ticket dashboard mock data)."
+      },
+      "resolution_sample": {
+        "url": "https://images.unsplash.com/photo-1763060893376-c95428e0a569?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHwzfHxjaXR5JTIwc3RyZWV0JTIwbWFpbnRlbmFuY2UlMjB3b3JrZXJzfGVufDB8fHx8MTc3NjE4NTEzM3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Sample photo for a resolved issue (Officer fixing the street)."
+      }
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width: 2px, clean, outline."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly adhere to the color palette, especially the SLA indicators (Green <50%, Yellow 50-75%, Red >75%). Avoid default Tailwind green/red/yellow without checking contrast.",
+    "Implement Leaflet/OSM map natively with clear markers. Use cluster logic for high-density complaint areas.",
+    "For the Issue Reporting form: Make the photo upload area prominent (upload_zone class) and ensure GPS coordinates visually lock in before submission.",
+    "Officer Dashboard needs the Mode B 'Control Room' grid: High density, gap-4 to gap-6, 1px borders, white solid cards against F8FAFC background.",
+    "Do NOT use 'Inter'. Add 'Outfit' (weights 400,600,700) and 'IBM Plex Sans' (weights 400,500) via Google Fonts.",
+    "Every interactive element MUST include a data-testid attribute in kebab-case (e.g. data-testid='submit-issue-button').",
+    "Ticket Status Timeline should be visual (Submitted -> Assigned -> In Progress -> Resolved -> Closed), using a vertical or horizontal stepper.",
+    "Build Shadcn-based tabs and dialogs for two-way messaging within the ticket detail view."
+  ]
+}
