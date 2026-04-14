@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -45,57 +45,102 @@ code {
         --chart-3: 38 92% 50%;
         --chart-4: 0 84% 60%;
         --chart-5: 262 83% 58%;
-        --radius: 0.5rem;
+        --radius: 0.75rem;
     }
 }
 
 @layer base {
-    * {
-        @apply border-border;
-    }
-    body {
-        @apply bg-background text-foreground;
-    }
+    * { @apply border-border; }
+    body { @apply bg-background text-foreground; }
 }
 
 @layer base {
-    [data-debug-wrapper="true"] {
-        display: contents !important;
-    }
+    [data-debug-wrapper="true"] { display: contents !important; }
 }
 
-/* Leaflet overrides */
-.leaflet-container {
-    font-family: 'IBM Plex Sans', sans-serif;
-    z-index: 1;
-}
+/* Leaflet */
+.leaflet-container { font-family: 'IBM Plex Sans', sans-serif; z-index: 1; }
 
-/* Status colors */
-.status-submitted { @apply bg-blue-100 text-blue-800; }
-.status-assigned { @apply bg-purple-100 text-purple-800; }
-.status-in_progress { @apply bg-amber-100 text-amber-800; }
-.status-resolved { @apply bg-emerald-100 text-emerald-800; }
-.status-closed { @apply bg-slate-100 text-slate-600; }
+/* ========== STATUS BADGES (per user spec) ========== */
+.status-submitted { @apply bg-slate-100 text-slate-700 border-slate-200; }
+.status-assigned { @apply bg-blue-50 text-blue-700 border-blue-200; }
+.status-in_progress { @apply bg-amber-50 text-amber-700 border-amber-200; }
+.status-resolved { @apply bg-emerald-50 text-emerald-700 border-emerald-200; }
+.status-closed { @apply bg-slate-50 text-slate-500 border-slate-200; }
 
-/* SLA indicators */
-.sla-safe { background-color: #D1FAE5; color: #065F46; border-color: #34D399; }
-.sla-warning { background-color: #FEF3C7; color: #92400E; border-color: #FBBF24; }
-.sla-danger { background-color: #FEE2E2; color: #991B1B; border-color: #F87171; }
+/* ========== SLA ========== */
+.sla-safe { background-color: #ECFDF5; color: #065F46; border-color: #6EE7B7; }
+.sla-warning { background-color: #FFFBEB; color: #92400E; border-color: #FCD34D; }
+.sla-danger { background-color: #FEF2F2; color: #991B1B; border-color: #FCA5A5; }
 
-/* Priority badges */
+/* ========== PRIORITY ========== */
 .priority-CRITICAL { @apply bg-red-600 text-white; }
 .priority-HIGH { @apply bg-orange-500 text-white; }
-.priority-MEDIUM { @apply bg-yellow-500 text-white; }
+.priority-MEDIUM { @apply bg-amber-500 text-white; }
 .priority-LOW { @apply bg-slate-400 text-white; }
 
-/* Page animations */
+/* ========== PREMIUM CARD ========== */
+.card-premium {
+    @apply bg-white rounded-2xl border border-slate-200/80 shadow-sm;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-premium:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -5px rgba(0,0,0,0.08), 0 4px 10px -6px rgba(0,0,0,0.04);
+}
+
+/* ========== SKELETON LOADER ========== */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+.skeleton {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 0.5rem;
+}
+
+/* ========== ANIMATIONS ========== */
 @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(16px); }
+    from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in-up {
-    animation: fadeInUp 0.5s ease-out forwards;
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
+@keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes countUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
+.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+.animate-scale-in { animation: scaleIn 0.3s ease-out forwards; }
+.animate-count-up { animation: countUp 0.4s ease-out forwards; }
+.animate-delay-50 { animation-delay: 50ms; }
 .animate-delay-100 { animation-delay: 100ms; }
+.animate-delay-150 { animation-delay: 150ms; }
 .animate-delay-200 { animation-delay: 200ms; }
+.animate-delay-250 { animation-delay: 250ms; }
 .animate-delay-300 { animation-delay: 300ms; }
+
+/* ========== STAT CARD ACCENT BARS ========== */
+.stat-accent-blue { border-left: 4px solid #2563EB; }
+.stat-accent-amber { border-left: 4px solid #F59E0B; }
+.stat-accent-emerald { border-left: 4px solid #10B981; }
+.stat-accent-red { border-left: 4px solid #EF4444; }
+.stat-accent-indigo { border-left: 4px solid #6366F1; }
+
+/* ========== SLA PROGRESS TRACK ========== */
+.sla-track {
+    @apply h-1.5 rounded-full overflow-hidden;
+    background: #f1f5f9;
+}
+.sla-bar {
+    @apply h-full rounded-full transition-all duration-700 ease-out;
+}

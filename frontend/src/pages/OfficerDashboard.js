@@ -6,35 +6,124 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Clock, AlertTriangle, CheckCircle, User, ChevronRight, Loader2, BarChart3,
+  Clock, AlertTriangle, CheckCircle, ChevronRight, Loader2, BarChart3, Timer,
+  Construction, Trash2, Droplets, Zap, TreePine, Bug, Volume2, HelpCircle, UserCheck, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const STATUS_LABELS = {
-  submitted: "Submitted", assigned: "Assigned", in_progress: "In Progress",
-  resolved: "Resolved", closed: "Closed",
-};
+const STATUS_LABELS = { submitted: "Submitted", assigned: "Assigned", in_progress: "In Progress", resolved: "Resolved", closed: "Closed" };
 const CATEGORY_LABELS = {
   roads_footpaths: "Roads & Footpaths", sanitation_waste: "Sanitation & Waste",
   water_drainage: "Water & Drainage", electricity_lighting: "Electricity & Lighting",
   parks_public_spaces: "Parks & Public Spaces", stray_animals: "Stray Animals",
   noise_pollution: "Noise & Pollution", other: "Other",
 };
+const CATEGORY_ICONS = {
+  roads_footpaths: Construction, sanitation_waste: Trash2, water_drainage: Droplets,
+  electricity_lighting: Zap, parks_public_spaces: TreePine, stray_animals: Bug,
+  noise_pollution: Volume2, other: HelpCircle,
+};
+const CATEGORY_COLORS = {
+  roads_footpaths: "bg-red-50 text-red-600", sanitation_waste: "bg-amber-50 text-amber-600",
+  water_drainage: "bg-blue-50 text-blue-600", electricity_lighting: "bg-violet-50 text-violet-600",
+  parks_public_spaces: "bg-emerald-50 text-emerald-600", stray_animals: "bg-pink-50 text-pink-600",
+  noise_pollution: "bg-slate-100 text-slate-600", other: "bg-purple-50 text-purple-600",
+};
 
-function StatCard({ label, value, icon: Icon, color }) {
+function StatCard({ label, value, icon: Icon, accentClass, delay }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow" data-testid={`stat-${label.toLowerCase().replace(/\s/g, "-")}`}>
+    <div className={cn("card-premium p-5 opacity-0 animate-count-up", accentClass, delay)} data-testid={`stat-${label.toLowerCase().replace(/\s/g, "-")}`}>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-widest uppercase text-slate-500">{label}</p>
-          <p className="text-2xl font-bold text-slate-900 font-['Outfit'] mt-1">{value}</p>
+          <p className="text-[11px] font-semibold tracking-widest uppercase text-slate-400">{label}</p>
+          <p className="text-3xl font-bold text-slate-900 font-['Outfit'] mt-1 tabular-nums">{value}</p>
         </div>
-        <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", color)}>
-          <Icon className="w-5 h-5 text-white" />
+        <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center">
+          <Icon className="w-5 h-5 text-slate-500" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OfficerTicketCard({ ticket, onAssign, onStatusChange }) {
+  const CatIcon = CATEGORY_ICONS[ticket.category] || HelpCircle;
+  const catColor = CATEGORY_COLORS[ticket.category] || "bg-slate-100 text-slate-600";
+  const slaPercent = ticket.sla_percentage || 0;
+  const slaColor = slaPercent < 50 ? "bg-emerald-500" : slaPercent < 75 ? "bg-amber-400" : "bg-red-500";
+  const isOpen = !["resolved", "closed"].includes(ticket.status);
+
+  return (
+    <div className="card-premium p-5 group" data-testid={`officer-row-${ticket.ticket_id}`}>
+      <div className="flex gap-4">
+        <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center shrink-0", catColor)}>
+          <CatIcon className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <Badge variant="outline" className={cn("text-[10px] font-semibold uppercase tracking-wider border rounded-lg px-2 py-0.5", `status-${ticket.status}`)}>
+              {STATUS_LABELS[ticket.status]}
+            </Badge>
+            <Badge variant="outline" className={cn("text-[10px] font-bold rounded-lg px-2 py-0.5", `priority-${ticket.priority}`)}>
+              {ticket.priority}
+            </Badge>
+          </div>
+          <Link to={`/ticket/${ticket.ticket_id}`} className="hover:text-blue-600 transition-colors">
+            <h3 className="text-sm font-semibold text-slate-900 truncate">{ticket.title}</h3>
+          </Link>
+          <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+            <span className="truncate">{CATEGORY_LABELS[ticket.category]}</span>
+            <span className="text-slate-300">|</span>
+            <span className="flex items-center gap-0.5 truncate"><MapPin className="w-3 h-3 shrink-0" />{ticket.address || "Map"}</span>
+          </div>
+
+          {/* SLA bar */}
+          {isOpen && slaPercent > 0 && (
+            <div className="mt-2.5">
+              <div className="flex items-center justify-between text-[10px] mb-1">
+                <span className="text-slate-400 flex items-center gap-1"><Timer className="w-3 h-3" />SLA</span>
+                <span className={cn("font-bold", slaPercent < 50 ? "text-emerald-600" : slaPercent < 75 ? "text-amber-600" : "text-red-600")}>
+                  {Math.round(slaPercent)}%
+                </span>
+              </div>
+              <div className="sla-track"><div className={cn("sla-bar", slaColor)} style={{ width: `${Math.min(100, slaPercent)}%` }} /></div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 mt-3 text-[10px] text-slate-400">
+            <span className="font-mono">{ticket.ticket_id}</span>
+            {ticket.assigned_to_name && (
+              <span className="flex items-center gap-0.5 text-blue-600 font-medium"><UserCheck className="w-3 h-3" />{ticket.assigned_to_name}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          {ticket.status === "submitted" && (
+            <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg" onClick={() => onAssign(ticket.ticket_id)} data-testid={`assign-btn-${ticket.ticket_id}`}>
+              Assign
+            </Button>
+          )}
+          {ticket.status === "assigned" && (
+            <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg text-amber-600 border-amber-200 hover:bg-amber-50"
+              onClick={() => onStatusChange(ticket.ticket_id, "in_progress")} data-testid={`start-btn-${ticket.ticket_id}`}>
+              Start Work
+            </Button>
+          )}
+          {ticket.status === "in_progress" && (
+            <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+              onClick={() => onStatusChange(ticket.ticket_id, "resolved")} data-testid={`resolve-btn-${ticket.ticket_id}`}>
+              Resolve
+            </Button>
+          )}
+          <Link to={`/ticket/${ticket.ticket_id}`}>
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
+          </Link>
         </div>
       </div>
     </div>
@@ -52,28 +141,24 @@ export default function OfficerDashboard() {
   const [selectedOfficer, setSelectedOfficer] = useState("");
   const [dashData, setDashData] = useState(null);
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      try {
-        const [ticketsRes, dashRes] = await Promise.all([
-          api.get("/tickets", { params: statusFilter !== "all" ? { status: statusFilter } : {} }),
-          api.get("/admin/dashboard"),
-        ]);
-        setTickets(ticketsRes.data.tickets);
-        setDashData(dashRes.data);
-        if (user?.role === "admin") {
-          const usersRes = await api.get("/admin/users", { params: { role: "officer" } });
-          setOfficers(usersRes.data.users);
-        }
-      } catch {
-        toast.error("Failed to load dashboard");
-      } finally {
-        setLoading(false);
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [ticketsRes, dashRes] = await Promise.all([
+        api.get("/tickets", { params: statusFilter !== "all" ? { status: statusFilter } : {} }),
+        api.get("/admin/dashboard"),
+      ]);
+      setTickets(ticketsRes.data.tickets);
+      setDashData(dashRes.data);
+      if (user?.role === "admin") {
+        const usersRes = await api.get("/admin/users", { params: { role: "officer" } });
+        setOfficers(usersRes.data.users);
       }
-    };
-    fetchAll();
-  }, [statusFilter, user]);
+    } catch { toast.error("Failed to load dashboard"); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchAll(); }, [statusFilter, user]);
 
   const handleAssign = async () => {
     if (!selectedTicket || !selectedOfficer) return;
@@ -81,29 +166,29 @@ export default function OfficerDashboard() {
       await api.post(`/tickets/${selectedTicket}/assign`, { assigned_to: selectedOfficer });
       toast.success("Ticket assigned");
       setAssignDialogOpen(false);
-      // Refresh
-      const res = await api.get("/tickets", { params: statusFilter !== "all" ? { status: statusFilter } : {} });
-      setTickets(res.data.tickets);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to assign");
-    }
+      fetchAll();
+    } catch (err) { toast.error(err.response?.data?.detail || "Failed to assign"); }
   };
 
   const handleStatusChange = async (ticketId, newStatus) => {
     try {
       await api.patch(`/tickets/${ticketId}/status`, { status: newStatus });
       toast.success("Status updated");
-      const res = await api.get("/tickets", { params: statusFilter !== "all" ? { status: statusFilter } : {} });
-      setTickets(res.data.tickets);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to update");
-    }
+      fetchAll();
+    } catch (err) { toast.error(err.response?.data?.detail || "Failed to update"); }
   };
 
   if (loading) {
     return (
-      <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-[#F8FAFC]">
-        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+      <div className="min-h-[calc(100vh-64px)] bg-[#F8FAFC]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[1,2,3,4].map(i => <div key={i} className="skeleton h-24 rounded-2xl" />)}
+          </div>
+          <div className="space-y-4">
+            {[1,2,3].map(i => <div key={i} className="skeleton h-32 rounded-2xl" />)}
+          </div>
+        </div>
       </div>
     );
   }
@@ -113,7 +198,7 @@ export default function OfficerDashboard() {
   return (
     <div className="min-h-[calc(100vh-64px)] bg-[#F8FAFC]" data-testid="officer-dashboard">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
+        <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 font-['Outfit'] tracking-tight" data-testid="officer-heading">
             Officer Dashboard
           </h1>
@@ -122,18 +207,18 @@ export default function OfficerDashboard() {
 
         {/* Stats */}
         {dashData && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <StatCard label="Open Issues" value={openCount} icon={AlertTriangle} color="bg-amber-500" />
-            <StatCard label="Resolved" value={dashData.by_status.resolved} icon={CheckCircle} color="bg-emerald-500" />
-            <StatCard label="SLA Breached" value={dashData.sla_breached} icon={Clock} color="bg-red-500" />
-            <StatCard label="Total" value={dashData.total_tickets} icon={BarChart3} color="bg-blue-600" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <StatCard label="Open Issues" value={openCount} icon={AlertTriangle} accentClass="stat-accent-amber" delay="animate-delay-50" />
+            <StatCard label="Resolved" value={dashData.by_status.resolved} icon={CheckCircle} accentClass="stat-accent-emerald" delay="animate-delay-100" />
+            <StatCard label="SLA Breached" value={dashData.sla_breached} icon={Clock} accentClass="stat-accent-red" delay="animate-delay-150" />
+            <StatCard label="Total" value={dashData.total_tickets} icon={BarChart3} accentClass="stat-accent-blue" delay="animate-delay-200" />
           </div>
         )}
 
         {/* Filter */}
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-6">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[160px] h-9 text-sm" data-testid="officer-status-filter">
+            <SelectTrigger className="w-[180px] h-10 text-sm rounded-xl bg-white" data-testid="officer-status-filter">
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>
@@ -144,116 +229,36 @@ export default function OfficerDashboard() {
               <SelectItem value="resolved">Resolved</SelectItem>
             </SelectContent>
           </Select>
+          <span className="text-xs text-slate-400">{tickets.length} tickets</span>
         </div>
 
-        {/* Tickets table */}
-        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden" data-testid="officer-tickets-table">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Ticket</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 hidden sm:table-cell">Category</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">SLA</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 hidden md:table-cell">Assigned</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tickets.map((t) => {
-                  const slaCls = t.sla_percentage < 50 ? "sla-safe" : t.sla_percentage < 75 ? "sla-warning" : "sla-danger";
-                  return (
-                    <tr key={t.ticket_id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors" data-testid={`officer-row-${t.ticket_id}`}>
-                      <td className="px-4 py-3">
-                        <Link to={`/ticket/${t.ticket_id}`} className="hover:text-blue-600 transition-colors">
-                          <p className="text-sm font-medium text-slate-900 truncate max-w-[200px]">{t.title}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">{t.ticket_id}</p>
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 hidden sm:table-cell">
-                        <span className="text-xs text-slate-600">{CATEGORY_LABELS[t.category]}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="secondary" className={cn("text-[10px]", `status-${t.status}`)}>
-                          {STATUS_LABELS[t.status]}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        {t.status !== "resolved" && t.status !== "closed" ? (
-                          <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border", slaCls)}>
-                            {Math.round(t.sla_percentage)}%
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <span className="text-xs text-slate-600">{t.assigned_to_name || "Unassigned"}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {t.status === "submitted" && (
-                            <>
-                              <Button
-                                variant="outline" size="sm" className="h-7 text-[10px]"
-                                onClick={() => {
-                                  setSelectedTicket(t.ticket_id);
-                                  setAssignDialogOpen(true);
-                                }}
-                                data-testid={`assign-btn-${t.ticket_id}`}
-                              >
-                                Assign
-                              </Button>
-                            </>
-                          )}
-                          {t.status === "assigned" && (
-                            <Button
-                              variant="outline" size="sm" className="h-7 text-[10px]"
-                              onClick={() => handleStatusChange(t.ticket_id, "in_progress")}
-                              data-testid={`start-btn-${t.ticket_id}`}
-                            >
-                              Start
-                            </Button>
-                          )}
-                          {t.status === "in_progress" && (
-                            <Button
-                              variant="outline" size="sm" className="h-7 text-[10px] text-emerald-600"
-                              onClick={() => handleStatusChange(t.ticket_id, "resolved")}
-                              data-testid={`resolve-btn-${t.ticket_id}`}
-                            >
-                              Resolve
-                            </Button>
-                          )}
-                          <Link to={`/ticket/${t.ticket_id}`}>
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                              <ChevronRight className="w-4 h-4" />
-                            </Button>
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {tickets.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-sm text-slate-400">No tickets found</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        {/* Card Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-testid="officer-tickets-table">
+          {tickets.map((t) => (
+            <OfficerTicketCard
+              key={t.ticket_id}
+              ticket={t}
+              onAssign={(id) => { setSelectedTicket(id); setAssignDialogOpen(true); }}
+              onStatusChange={handleStatusChange}
+            />
+          ))}
+          {tickets.length === 0 && (
+            <div className="col-span-2 card-premium text-center py-16">
+              <CheckCircle className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+              <p className="text-sm text-slate-400">No tickets found</p>
+            </div>
+          )}
         </div>
 
         {/* Assign Dialog */}
         <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-          <DialogContent>
+          <DialogContent className="rounded-2xl">
             <DialogHeader>
-              <DialogTitle>Assign Ticket</DialogTitle>
+              <DialogTitle className="font-['Outfit']">Assign Ticket</DialogTitle>
             </DialogHeader>
-            <div className="py-2">
+            <div className="py-3">
               <Select value={selectedOfficer} onValueChange={setSelectedOfficer}>
-                <SelectTrigger data-testid="assign-officer-select">
+                <SelectTrigger className="rounded-xl" data-testid="assign-officer-select">
                   <SelectValue placeholder="Select officer" />
                 </SelectTrigger>
                 <SelectContent>
@@ -267,7 +272,7 @@ export default function OfficerDashboard() {
               </Select>
             </div>
             <DialogFooter>
-              <Button onClick={handleAssign} disabled={!selectedOfficer} className="bg-blue-600 hover:bg-blue-700 text-white" data-testid="confirm-assign-btn">
+              <Button onClick={handleAssign} disabled={!selectedOfficer} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl" data-testid="confirm-assign-btn">
                 Assign
               </Button>
             </DialogFooter>

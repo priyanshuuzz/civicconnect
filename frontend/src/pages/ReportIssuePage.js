@@ -140,15 +140,15 @@ export default function ReportIssuePage() {
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-[#F8FAFC]">
-      <div className="max-w-xl mx-auto px-4 py-8">
-        <div className="mb-6">
+      <div className="max-w-xl mx-auto px-4 sm:px-6 py-8">
+        <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 font-['Outfit'] tracking-tight" data-testid="report-heading">
             Report an Issue
           </h1>
           <p className="text-sm text-slate-500 mt-1">Help improve your neighborhood. Your report matters.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6" data-testid="report-form">
+        <form onSubmit={handleSubmit} className="card-premium p-6 sm:p-8 space-y-6" data-testid="report-form">
           {/* Title */}
           <div>
             <Label className="text-sm font-medium text-slate-700">Title</Label>
@@ -226,7 +226,7 @@ export default function ReportIssuePage() {
                 </div>
               )}
               <label
-                className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors flex flex-col items-center justify-center gap-2 cursor-pointer"
+                className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:bg-blue-50/30 hover:border-blue-300 transition-all flex flex-col items-center justify-center gap-3 cursor-pointer"
                 data-testid="photo-upload-zone"
               >
                 <Upload className="w-6 h-6 text-slate-400" />
@@ -253,7 +253,7 @@ export default function ReportIssuePage() {
                 Detect GPS
               </Button>
             </div>
-            <div className="rounded-lg overflow-hidden border border-slate-200 h-[200px]" data-testid="location-map">
+            <div className="rounded-xl overflow-hidden border border-slate-200 h-[220px] shadow-sm" data-testid="location-map">
               {position && (
                 <MapContainer center={position} zoom={15} style={{ height: "100%", width: "100%" }} scrollWheelZoom={true}>
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -294,7 +294,7 @@ export default function ReportIssuePage() {
 
           {/* Submit */}
           <Button
-            type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white h-11"
+            type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 rounded-xl shadow-sm shadow-blue-200 text-sm font-semibold"
             disabled={submitting} data-testid="submit-report-btn"
           >
             {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}

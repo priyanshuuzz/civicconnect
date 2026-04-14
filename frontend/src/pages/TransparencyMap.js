@@ -2,10 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import api from "@/lib/api";
 import L from "@/lib/leaflet-setup";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Filter, MapPin } from "lucide-react";
+import { Loader2, Filter, MapPin, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_LABELS = {
@@ -14,21 +13,25 @@ const CATEGORY_LABELS = {
   parks_public_spaces: "Parks & Public Spaces", stray_animals: "Stray Animals",
   noise_pollution: "Noise & Pollution", other: "Other",
 };
-
 const CATEGORY_COLORS = {
   roads_footpaths: "#EF4444", sanitation_waste: "#F59E0B", water_drainage: "#3B82F6",
   electricity_lighting: "#8B5CF6", parks_public_spaces: "#10B981", stray_animals: "#EC4899",
   noise_pollution: "#6B7280", other: "#A855F7",
 };
 
-function createCategoryIcon(category) {
+function createCategoryIcon(category, priority) {
   const color = CATEGORY_COLORS[category] || "#6B7280";
+  const size = priority === "CRITICAL" ? 34 : 28;
+  const pulse = priority === "CRITICAL" ? `<div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid ${color};opacity:0.4;animation:ping 1.5s infinite"></div>` : "";
   return L.divIcon({
     className: "",
-    html: `<div style="width:28px;height:28px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -16],
+    html: `<div style="position:relative;width:${size}px;height:${size}px">
+      ${pulse}
+      <div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25)"></div>
+    </div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
   });
 }
 
@@ -36,10 +39,8 @@ function FitBounds({ tickets }) {
   const map = useMap();
   useEffect(() => {
     if (tickets.length > 0) {
-      const bounds = L.latLngBounds(
-        tickets.map((t) => [t.location.coordinates[1], t.location.coordinates[0]])
-      );
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      const bounds = L.latLngBounds(tickets.map(t => [t.location.coordinates[1], t.location.coordinates[0]]));
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
     }
   }, [tickets, map]);
   return null;
@@ -60,47 +61,51 @@ export default function TransparencyMap() {
         if (statusFilter !== "all") params.status = statusFilter;
         const res = await api.get("/map/tickets", { params });
         setTickets(res.data.tickets);
-      } catch {
-        setTickets([]);
-      } finally {
-        setLoading(false);
-      }
+      } catch { setTickets([]); }
+      finally { setLoading(false); }
     };
     fetchTickets();
   }, [categoryFilter, statusFilter]);
 
-  const filteredTickets = useMemo(() => {
-    return tickets.filter((t) => t.location?.coordinates?.length === 2);
-  }, [tickets]);
+  const filteredTickets = useMemo(() => tickets.filter(t => t.location?.coordinates?.length === 2), [tickets]);
+  const breachedCount = filteredTickets.filter(t => t.sla_percentage >= 100).length;
+  const openCount = filteredTickets.filter(t => ["submitted", "assigned", "in_progress"].includes(t.status)).length;
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-[#F8FAFC] flex flex-col" data-testid="transparency-map-page">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3">
+      <div className="bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3.5">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold text-slate-900 font-['Outfit']" data-testid="map-heading">
               Public Transparency Map
             </h1>
-            <p className="text-xs text-slate-500">{filteredTickets.length} active issues</p>
+            <p className="text-xs text-slate-500">{filteredTickets.length} active issues across the city</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-slate-400" />
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="h-8 w-[160px] text-xs" data-testid="map-category-filter">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Stat pills */}
+            <div className="hidden sm:flex items-center gap-2 mr-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold">
+                <AlertTriangle className="w-3 h-3" />{openCount} Open
+              </span>
+              {breachedCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 text-red-700 text-[10px] font-bold">
+                  <Clock className="w-3 h-3" />{breachedCount} Breached
+                </span>
+              )}
             </div>
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="h-9 w-[160px] text-xs rounded-xl bg-white" data-testid="map-category-filter">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {Object.entries(CATEGORY_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 w-[130px] text-xs" data-testid="map-status-filter">
+              <SelectTrigger className="h-9 w-[130px] text-xs rounded-xl bg-white" data-testid="map-status-filter">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -118,48 +123,33 @@ export default function TransparencyMap() {
       {/* Map */}
       <div className="flex-1 relative">
         {loading && (
-          <div className="absolute inset-0 z-10 bg-white/60 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+          <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-sm flex items-center justify-center">
+            <div className="card-premium px-5 py-3 flex items-center gap-2.5">
+              <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+              <span className="text-xs text-slate-600 font-medium">Loading map data...</span>
+            </div>
           </div>
         )}
-        <MapContainer
-          center={[28.4089, 77.3178]}
-          zoom={12}
-          style={{ height: "calc(100vh - 64px - 56px)", width: "100%" }}
-          scrollWheelZoom={true}
-        >
+        <MapContainer center={[28.4089, 77.3178]} zoom={12} style={{ height: "calc(100vh - 64px - 60px)", width: "100%" }} scrollWheelZoom={true}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
           {filteredTickets.length > 0 && <FitBounds tickets={filteredTickets} />}
-          {filteredTickets.map((t) => (
-            <Marker
-              key={t.ticket_id}
-              position={[t.location.coordinates[1], t.location.coordinates[0]]}
-              icon={createCategoryIcon(t.category)}
-            >
+          {filteredTickets.map(t => (
+            <Marker key={t.ticket_id} position={[t.location.coordinates[1], t.location.coordinates[0]]} icon={createCategoryIcon(t.category, t.priority)}>
               <Popup>
-                <div className="min-w-[180px]" data-testid={`map-popup-${t.ticket_id}`}>
-                  <div className="flex items-center gap-1 mb-1">
-                    <Badge variant="secondary" className={cn("text-[9px]", `status-${t.status}`)}>
-                      {t.status?.replace("_", " ")}
-                    </Badge>
-                    <Badge variant="outline" className={cn("text-[9px]", `priority-${t.priority}`)}>
-                      {t.priority}
-                    </Badge>
+                <div className="min-w-[200px] p-1" data-testid={`map-popup-${t.ticket_id}`}>
+                  <div className="flex items-center gap-1 mb-1.5">
+                    <Badge variant="outline" className={cn("text-[9px] rounded-md", `status-${t.status}`)}>{t.status?.replace("_", " ")}</Badge>
+                    <Badge variant="outline" className={cn("text-[9px] rounded-md", `priority-${t.priority}`)}>{t.priority}</Badge>
                   </div>
                   <p className="font-semibold text-sm text-slate-900">{t.title}</p>
                   <p className="text-xs text-slate-500 mt-0.5">{CATEGORY_LABELS[t.category]} &middot; {t.subcategory}</p>
                   {t.address && <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-0.5"><MapPin className="w-3 h-3" />{t.address}</p>}
-                  <p className="text-[10px] text-slate-400 mt-1">{new Date(t.created_at).toLocaleDateString()}</p>
+                  <p className="text-[10px] text-slate-400 mt-1.5">{new Date(t.created_at).toLocaleDateString()}</p>
                   {t.sla_percentage > 0 && (
-                    <div className="mt-1.5">
-                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full rounded-full",
-                            t.sla_percentage < 50 ? "bg-emerald-500" : t.sla_percentage < 75 ? "bg-yellow-500" : "bg-red-500"
-                          )}
-                          style={{ width: `${Math.min(100, t.sla_percentage)}%` }}
-                        />
+                    <div className="mt-2">
+                      <div className="sla-track h-1.5">
+                        <div className={cn("sla-bar", t.sla_percentage < 50 ? "bg-emerald-500" : t.sla_percentage < 75 ? "bg-amber-400" : "bg-red-500")}
+                          style={{ width: `${Math.min(100, t.sla_percentage)}%` }} />
                       </div>
                       <p className="text-[9px] text-slate-400 mt-0.5">SLA: {Math.round(t.sla_percentage)}%</p>
                     </div>
@@ -170,16 +160,19 @@ export default function TransparencyMap() {
           ))}
         </MapContainer>
 
-        {/* Legend */}
-        <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur-md border border-slate-200 rounded-lg shadow-lg p-3" data-testid="map-legend">
-          <p className="text-xs font-semibold text-slate-700 mb-2">Categories</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+        {/* Legend Card */}
+        <div className="absolute bottom-5 left-5 z-[1000] card-premium p-4 max-w-[240px]" data-testid="map-legend">
+          <p className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-2.5">Categories</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
             {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-              <div key={k} className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[k] }} />
+              <div key={k} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: CATEGORY_COLORS[k] }} />
                 <span className="text-[10px] text-slate-600 truncate">{v}</span>
               </div>
             ))}
+          </div>
+          <div className="border-t border-slate-100 mt-3 pt-2.5">
+            <p className="text-[10px] text-slate-400">Larger markers = Critical priority</p>
           </div>
         </div>
       </div>
