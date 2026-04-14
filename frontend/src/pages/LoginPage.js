@@ -8,14 +8,15 @@ import { MapPin, Mail, Lock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LoginPage() {
-  const { login, googleAuth, isAuthenticated } = useAuth();
+  const { login, googleAuth, isAuthenticated, user: authUser } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   if (isAuthenticated) {
-    navigate("/dashboard", { replace: true });
+    const dest = authUser?.role === "admin" ? "/admin" : authUser?.role === "officer" ? "/officer" : "/dashboard";
+    navigate(dest, { replace: true });
     return null;
   }
 

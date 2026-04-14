@@ -153,7 +153,7 @@ export default function ReportIssuePage() {
           <div>
             <Label className="text-sm font-medium text-slate-700">Title</Label>
             <Input
-              placeholder="e.g., Large pothole on Main Street"
+              name="title" placeholder="e.g., Large pothole on Main Street"
               value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
               required className="mt-1" data-testid="report-title-input"
             />
@@ -163,7 +163,7 @@ export default function ReportIssuePage() {
           <div>
             <Label className="text-sm font-medium text-slate-700">Description</Label>
             <Textarea
-              placeholder="Describe the issue in detail..."
+              name="description" placeholder="Describe the issue in detail..."
               value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
               required className="mt-1 min-h-[100px]" data-testid="report-description-input"
             />

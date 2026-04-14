@@ -62,7 +62,7 @@ export default function RegisterPage() {
               <div className="relative mt-1">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
-                  id="name" placeholder="Your full name" value={form.name}
+                  id="name" name="name" placeholder="Your full name" value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="pl-10" required data-testid="register-name-input"
                 />
