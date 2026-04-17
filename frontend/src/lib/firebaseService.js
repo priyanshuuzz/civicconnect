@@ -485,37 +485,65 @@ export const updateUserRole = async (userId, newRole) => {
 };
 
 // Real-time subscription to complaints
-export const subscribeToComplaints = (filters, callback) => {
-  let q = collection(db, "complaints");
-  const constraints = [];
-
-  if (filters.userId) {
-    constraints.push(where("userId", "==", filters.userId));
-  }
-  if (filters.status) {
-    constraints.push(where("status", "==", filters.status));
-  }
-  if (filters.category) {
-    constraints.push(where("category", "==", filters.category));
-  }
-
-  constraints.push(orderBy("createdAt", "desc"));
+export const subscribeToComplaints = (filters, callback, errorCallback) => {
+  console.log("🔥 subscribeToComplaints called with filters:", filters);
   
-  if (filters.limit) {
-    constraints.push(limit(filters.limit));
-  }
+  try {
+    let q = collection(db, "complaints");
+    const constraints = [];
 
-  q = query(q, ...constraints);
-  
-  return onSnapshot(q, (snapshot) => {
-    const complaints = snapshot.docs.map(doc => ({
-      ticket_id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || null,
-      updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || null,
-      resolvedAt: doc.data().resolvedAt?.toDate?.()?.toISOString() || null,
-      slaDeadline: doc.data().slaDeadline?.toDate?.()?.toISOString() || null,
-    }));
-    callback(complaints);
-  });
+    if (filters.userId) {
+      console.log("📌 Adding userId filter:", filters.userId);
+      constraints.push(where("userId", "==", filters.userId));
+    }
+    if (filters.status) {
+      console.log("📌 Adding status filter:", filters.status);
+      constraints.push(where("status", "==", filters.status));
+    }
+    if (filters.category) {
+      console.log("📌 Adding category filter:", filters.category);
+      constraints.push(where("category", "==", filters.category));
+    }
+
+    constraints.push(orderBy("createdAt", "desc"));
+    
+    if (filters.limit) {
+      constraints.push(limit(filters.limit));
+    }
+
+    q = query(q, ...constraints);
+    console.log("✅ Query created successfully");
+    
+    return onSnapshot(q, 
+      (snapshot) => {
+        console.log("📬 Snapshot received:", snapshot.size, "documents");
+        const complaints = snapshot.docs.map(doc => ({
+          ticket_id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || null,
+          updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || null,
+          resolvedAt: doc.data().resolvedAt?.toDate?.()?.toISOString() || null,
+          slaDeadline: doc.data().slaDeadline?.toDate?.()?.toISOString() || null,
+        }));
+        console.log("✅ Processed complaints:", complaints);
+        callback(complaints);
+      },
+      (error) => {
+        console.error("❌ Snapshot error:", error);
+        if (errorCallback) {
+          errorCallback(error);
+        } else {
+          // If no error callback, still call main callback with empty array
+          callback([]);
+        }
+      }
+    );
+  } catch (error) {
+    console.error("❌ Error in subscribeToComplaints:", error);
+    if (errorCallback) {
+      errorCallback(error);
+    }
+    // Return a dummy unsubscribe function
+    return () => {};
+  }
 };

@@ -26,7 +26,16 @@ validateFirebaseSetup().then(results => {
 
 function ProtectedRoute({ children, roles }) {
   const { user, loading, isAuthenticated } = useAuth();
+  
+  console.log("🔒 ProtectedRoute check:", { 
+    loading, 
+    isAuthenticated, 
+    user: user?.user_id || "no user",
+    roles 
+  });
+  
   if (loading) {
+    console.log("⏳ Still loading auth state...");
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
         <div className="flex flex-col items-center gap-3">
@@ -36,8 +45,18 @@ function ProtectedRoute({ children, roles }) {
       </div>
     );
   }
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user?.role)) return <Navigate to="/dashboard" replace />;
+  
+  if (!isAuthenticated) {
+    console.log("❌ Not authenticated, redirecting to login");
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (roles && !roles.includes(user?.role)) {
+    console.log("❌ Insufficient permissions, redirecting to dashboard");
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  console.log("✅ Access granted");
   return children;
 }
 

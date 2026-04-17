@@ -18,42 +18,80 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
+    console.log("🔍 Auth state changed:", { 
+      firebaseUser: firebaseUser ? "exists" : "null",
+      uid: firebaseUser?.uid 
+    });
+
     // Listen to Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log("🔥 onAuthStateChanged triggered:", firebaseUser?.uid || "no user");
+      
       if (firebaseUser) {
-        // Fetch user data from Firestore
-        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = {
-            user_id: firebaseUser.uid,
-            email: firebaseUser.email,
-            name: firebaseUser.displayName || userDoc.data().name,
-            role: userDoc.data().role || "citizen",
-            phone: userDoc.data().phone || "",
-            picture: firebaseUser.photoURL || userDoc.data().picture || "",
-            ...userDoc.data()
-          };
-          setUser(userData);
-          setIsAuthenticated(true);
+        try {
+          console.log("📖 Fetching user document from Firestore...");
+          // Fetch user data from Firestore
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (userDoc.exists()) {
+            console.log("✅ User document found:", userDoc.data());
+            const userData = {
+              user_id: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firebaseUser.displayName || userDoc.data().name,
+              role: userDoc.data().role || "citizen",
+              phone: userDoc.data().phone || "",
+              picture: firebaseUser.photoURL || userDoc.data().picture || "",
+              ...userDoc.data()
+            };
+            setUser(userData);
+            setIsAuthenticated(true);
+            console.log("✅ User state set:", userData);
 
-          // Setup FCM notifications if not already enabled
-          if (!areNotificationsEnabled()) {
-            // Wait a bit before prompting for notifications (better UX)
-            setTimeout(() => {
-              setupNotifications(firebaseUser.uid).catch(err => {
-                console.error("Failed to setup notifications:", err);
-              });
-            }, 2000);
+            // Setup FCM notifications if not already enabled
+            if (!areNotificationsEnabled()) {
+              // Wait a bit before prompting for notifications (better UX)
+              setTimeout(() => {
+                setupNotifications(firebaseUser.uid).catch(err => {
+                  console.error("Failed to setup notifications:", err);
+                });
+              }, 2000);
+            }
+          } else {
+            console.warn("⚠️ User document not found in Firestore, creating...");
+            // User exists in Auth but not in Firestore - create document
+            const userData = {
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User",
+              email: firebaseUser.email,
+              phone: "",
+              role: "citizen",
+              picture: firebaseUser.photoURL || "",
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            };
+            
+            await setDoc(userDocRef, userData);
+            console.log("✅ User document created");
+            
+            setUser({
+              user_id: firebaseUser.uid,
+              ...userData
+            });
+            setIsAuthenticated(true);
           }
-        } else {
-          // User exists in Auth but not in Firestore (shouldn't happen)
+        } catch (error) {
+          console.error("❌ Error fetching user data:", error);
           setUser(null);
           setIsAuthenticated(false);
         }
       } else {
+        console.log("👤 No user logged in");
         setUser(null);
         setIsAuthenticated(false);
       }
+      
+      console.log("✅ Setting loading to false");
       setLoading(false);
     });
 

@@ -150,21 +150,42 @@ function TicketCard({ ticket, idx }) {
 }
 
 export default function CitizenDashboard() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [error, setError] = useState(null);
 
   // Paginate tickets client-side
   const paginatedTickets = tickets.slice((page - 1) * 20, page * 20);
 
   useEffect(() => {
-    if (!user?.user_id) return;
+    console.log("🔍 CitizenDashboard: Mount/Update", { 
+      authLoading,
+      user: user?.user_id || "no user",
+      statusFilter 
+    });
 
+    // CRITICAL: If auth is still loading, wait
+    if (authLoading) {
+      console.log("⏳ Auth still loading, waiting...");
+      return;
+    }
+
+    // CRITICAL: If no user after auth loaded, stop loading
+    if (!user?.user_id) {
+      console.log("⚠️ No user ID after auth loaded, stopping loading");
+      setLoading(false);
+      setError("Please log in to view your complaints");
+      return;
+    }
+
+    console.log("📊 Starting real-time subscription...");
     setLoading(true);
+    setError(null);
 
     // Build filters for real-time subscription
     const filters = {
@@ -176,17 +197,47 @@ export default function CitizenDashboard() {
       filters.status = statusFilter;
     }
 
-    // Subscribe to real-time updates
-    const unsubscribe = subscribeToComplaints(filters, (complaints) => {
-      setTickets(complaints);
-      setTotal(complaints.length);
-      setTotalPages(Math.ceil(complaints.length / 20));
-      setLoading(false);
-    });
+    console.log("🔍 Subscription filters:", filters);
 
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, [statusFilter, user]);
+    // Set a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.error("⏰ Subscription timeout - forcing loading to stop");
+      setLoading(false);
+      setError("Loading took too long. Please refresh the page.");
+    }, 10000); // 10 second timeout
+
+    try {
+      // Subscribe to real-time updates
+      const unsubscribe = subscribeToComplaints(filters, (complaints) => {
+        clearTimeout(timeoutId);
+        console.log("✅ Received complaints:", complaints.length);
+        setTickets(complaints);
+        setTotal(complaints.length);
+        setTotalPages(Math.ceil(complaints.length / 20));
+        setLoading(false);
+        setError(null);
+      }, (error) => {
+        clearTimeout(timeoutId);
+        console.error("❌ Subscription error:", error);
+        setLoading(false);
+        setTickets([]);
+        setError(error.message || "Failed to load complaints");
+      });
+
+      // Cleanup subscription on unmount
+      return () => {
+        console.log("🧹 Cleaning up subscription");
+        clearTimeout(timeoutId);
+        unsubscribe();
+      };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error("❌ Error setting up subscription:", error);
+      setLoading(false);
+      setTickets([]);
+      setError(error.message || "Failed to setup subscription");
+    }
+  }, [statusFilter, user, authLoading]);
 
   const activeCount = tickets.filter(t => !["resolved", "closed"].includes(t.status)).length;
   const breachedCount = tickets.filter(t => {
@@ -238,6 +289,20 @@ export default function CitizenDashboard() {
         {loading ? (
           <div className="flex flex-col gap-4">
             {[1,2,3].map(i => <SkeletonCard key={i} />)}
+          </div>
+        ) : error ? (
+          <div className="card-premium text-center py-20 px-6" data-testid="error-state">
+            <div className="w-20 h-20 mx-auto rounded-2xl bg-red-50 flex items-center justify-center mb-5">
+              <AlertTriangle className="w-9 h-9 text-red-500" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-800 font-['Outfit']">Error Loading Data</h3>
+            <p className="text-sm text-slate-500 mt-2 max-w-xs mx-auto">{error}</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              className="mt-6 bg-blue-600 hover:bg-blue-700 text-white gap-2 rounded-xl h-11 px-6 shadow-sm shadow-blue-200"
+            >
+              Refresh Page
+            </Button>
           </div>
         ) : tickets.length === 0 ? (
           <div className="card-premium text-center py-20 px-6" data-testid="empty-state">

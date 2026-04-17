@@ -16,10 +16,14 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    // Get user role (with null check)
+    // Get user role (with null check and safe access)
     function getUserRole() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+      if (!isAuthenticated()) {
+        return 'citizen';
+      }
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc != null && userDoc.data != null && userDoc.data.role != null 
+        ? userDoc.data.role 
         : 'citizen';
     }
     
@@ -42,11 +46,17 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       
       // Users can create their own profile during registration
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // Must set role to 'citizen' initially (admins can change later)
+      allow create: if request.auth != null && 
+                       request.auth.uid == userId &&
+                       request.resource.data.email == request.auth.token.email &&
+                       (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == 'citizen');
       
-      // Users can update their own profile (except role and email)
+      // Users can update their own profile (except role)
       // Admins can update any profile including roles
-      allow update: if isOwner(userId) || isAdmin();
+      allow update: if (isOwner(userId) && 
+                        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'email']))) ||
+                       isAdmin();
       
       // Only admins can delete users
       allow delete: if isAdmin();
