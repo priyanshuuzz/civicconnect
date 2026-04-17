@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import api from "@/lib/api";
+import { subscribeToComplaints, getDashboardStats, getUsers, assignComplaint, updateComplaintStatus } from "@/lib/firebaseService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +53,15 @@ function StatCard({ label, value, icon: Icon, accentClass, delay }) {
 function OfficerTicketCard({ ticket, onAssign, onStatusChange }) {
   const CatIcon = CATEGORY_ICONS[ticket.category] || HelpCircle;
   const catColor = CATEGORY_COLORS[ticket.category] || "bg-slate-100 text-slate-600";
-  const slaPercent = ticket.sla_percentage || 0;
+  
+  // Calculate SLA percentage
+  const now = new Date();
+  const createdAt = new Date(ticket.createdAt);
+  const slaDeadline = new Date(ticket.slaDeadline);
+  const total = slaDeadline - createdAt;
+  const elapsed = now - createdAt;
+  const slaPercent = total > 0 ? Math.min(100, Math.max(0, (elapsed / total) * 100)) : 0;
+  
   const slaColor = slaPercent < 50 ? "bg-emerald-500" : slaPercent < 75 ? "bg-amber-400" : "bg-red-500";
   const isOpen = !["resolved", "closed"].includes(ticket.status);
 
@@ -96,8 +104,8 @@ function OfficerTicketCard({ ticket, onAssign, onStatusChange }) {
 
           <div className="flex items-center gap-2 mt-3 text-[10px] text-slate-400">
             <span className="font-mono">{ticket.ticket_id}</span>
-            {ticket.assigned_to_name && (
-              <span className="flex items-center gap-0.5 text-blue-600 font-medium"><UserCheck className="w-3 h-3" />{ticket.assigned_to_name}</span>
+            {ticket.assignedToName && (
+              <span className="flex items-center gap-0.5 text-blue-600 font-medium"><UserCheck className="w-3 h-3" />{ticket.assignedToName}</span>
             )}
           </div>
         </div>
@@ -144,38 +152,64 @@ export default function OfficerDashboard() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [ticketsRes, dashRes] = await Promise.all([
-        api.get("/tickets", { params: statusFilter !== "all" ? { status: statusFilter } : {} }),
-        api.get("/admin/dashboard"),
-      ]);
-      setTickets(ticketsRes.data.tickets);
-      setDashData(dashRes.data);
+      // Get dashboard stats
+      const stats = await getDashboardStats();
+      setDashData(stats);
+
+      // Get officers list if admin
       if (user?.role === "admin") {
-        const usersRes = await api.get("/admin/users", { params: { role: "officer" } });
-        setOfficers(usersRes.data.users);
+        const officersList = await getUsers("officer");
+        setOfficers(officersList);
       }
-    } catch { toast.error("Failed to load dashboard"); }
-    finally { setLoading(false); }
+    } catch (error) {
+      toast.error("Failed to load dashboard");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchAll(); }, [statusFilter, user]);
+  useEffect(() => {
+    if (!user) return;
+
+    fetchAll();
+
+    // Subscribe to real-time complaints
+    const filters = {};
+    if (statusFilter !== "all") {
+      filters.status = statusFilter;
+    }
+
+    const unsubscribe = subscribeToComplaints(filters, (complaints) => {
+      setTickets(complaints);
+    });
+
+    return () => unsubscribe();
+  }, [statusFilter, user]);
 
   const handleAssign = async () => {
     if (!selectedTicket || !selectedOfficer) return;
     try {
-      await api.post(`/tickets/${selectedTicket}/assign`, { assigned_to: selectedOfficer });
+      // Get officer name
+      const officer = officers.find(o => o.user_id === selectedOfficer);
+      const officerName = officer?.name || user?.name || "Officer";
+      
+      await assignComplaint(selectedTicket, selectedOfficer, officerName, user.user_id, "Assigned via dashboard");
       toast.success("Ticket assigned");
       setAssignDialogOpen(false);
-      fetchAll();
-    } catch (err) { toast.error(err.response?.data?.detail || "Failed to assign"); }
+      setSelectedTicket(null);
+      setSelectedOfficer("");
+    } catch (err) {
+      toast.error(err.message || "Failed to assign");
+    }
   };
 
   const handleStatusChange = async (ticketId, newStatus) => {
     try {
-      await api.patch(`/tickets/${ticketId}/status`, { status: newStatus });
+      await updateComplaintStatus(ticketId, newStatus, user.user_id, `Status changed to ${newStatus}`);
       toast.success("Status updated");
-      fetchAll();
-    } catch (err) { toast.error(err.response?.data?.detail || "Failed to update"); }
+    } catch (err) {
+      toast.error(err.message || "Failed to update");
+    }
   };
 
   if (loading) {

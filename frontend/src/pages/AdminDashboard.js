@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import { getDashboardStats, getUsers, updateUserRole } from "@/lib/firebaseService";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -66,21 +66,29 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [dashRes, usersRes] = await Promise.all([api.get("/admin/dashboard"), api.get("/admin/users")]);
-        setDashData(dashRes.data);
-        setUsers(usersRes.data.users);
-      } catch { toast.error("Failed to load admin data"); }
-      finally { setLoading(false); }
+        const [stats, usersList] = await Promise.all([
+          getDashboardStats(),
+          getUsers()
+        ]);
+        setDashData(stats);
+        setUsers(usersList);
+      } catch (error) {
+        toast.error("Failed to load admin data");
+      } finally {
+        setLoading(false);
+      }
     };
     fetchAll();
   }, []);
 
   const handleRoleChange = async (userId, newRole) => {
     try {
-      await api.patch(`/admin/users/${userId}/role`, { role: newRole });
+      await updateUserRole(userId, newRole);
       toast.success("Role updated");
       setUsers(users.map((u) => u.user_id === userId ? { ...u, role: newRole } : u));
-    } catch { toast.error("Failed to update role"); }
+    } catch (error) {
+      toast.error("Failed to update role");
+    }
   };
 
   if (loading) {

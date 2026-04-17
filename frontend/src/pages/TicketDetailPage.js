@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import api from "@/lib/api";
+import { getComplaintById, subscribeToMessages, addMessage, updateComplaintStatus } from "@/lib/firebaseService";
 import { useAuth } from "@/contexts/AuthContext";
 import StatusTimeline from "@/components/StatusTimeline";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+// Removed BACKEND constant - using Firebase Storage URLs now
 const CATEGORY_LABELS = {
   roads_footpaths: "Roads & Footpaths", sanitation_waste: "Sanitation & Waste",
   water_drainage: "Water & Drainage", electricity_lighting: "Electricity & Lighting",
@@ -43,7 +43,7 @@ export default function TicketDetailPage() {
   const { user } = useAuth();
   const [ticket, setTicket] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLogs] = useState([]); // Audit logs removed for now - can be added later
   const [loading, setLoading] = useState(true);
   const [msgText, setMsgText] = useState("");
   const [sending, setSending] = useState(false);
@@ -53,35 +53,52 @@ export default function TicketDetailPage() {
 
   const fetchTicket = async () => {
     try {
-      const res = await api.get(`/tickets/${id}`);
-      setTicket(res.data.ticket);
-      setMessages(res.data.messages);
-      setAuditLogs(res.data.audit_logs);
-    } catch { toast.error("Failed to load ticket"); navigate("/dashboard"); }
-    finally { setLoading(false); }
+      const complaintData = await getComplaintById(id);
+      setTicket(complaintData);
+    } catch (error) {
+      toast.error("Failed to load ticket");
+      navigate("/dashboard");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchTicket(); }, [id]);
+  useEffect(() => {
+    fetchTicket();
+
+    // Subscribe to real-time messages
+    const unsubscribe = subscribeToMessages(id, (messagesData) => {
+      setMessages(messagesData);
+    });
+
+    return () => unsubscribe();
+  }, [id]);
 
   const sendMessage = async () => {
     if (!msgText.trim()) return;
     setSending(true);
     try {
-      const res = await api.post(`/tickets/${id}/messages`, { text: msgText });
-      setMessages([...messages, res.data]);
+      await addMessage(id, user.user_id, user.name, user.role, msgText);
       setMsgText("");
-    } catch { toast.error("Failed to send message"); }
-    finally { setSending(false); }
+      toast.success("Message sent");
+    } catch (error) {
+      toast.error("Failed to send message");
+    } finally {
+      setSending(false);
+    }
   };
 
   const updateStatus = async () => {
     try {
-      await api.patch(`/tickets/${id}/status`, { status: newStatus, note: statusNote });
+      await updateComplaintStatus(id, newStatus, user.user_id, statusNote);
       toast.success(`Status updated to ${newStatus}`);
       setStatusDialogOpen(false);
       setStatusNote("");
+      setNewStatus("");
       fetchTicket();
-    } catch (err) { toast.error(err.response?.data?.detail || "Failed to update status"); }
+    } catch (err) {
+      toast.error(err.message || "Failed to update status");
+    }
   };
 
   if (loading) {
@@ -105,7 +122,15 @@ export default function TicketDetailPage() {
   const statusOptions = isOfficerOrAdmin
     ? ["submitted", "assigned", "in_progress", "resolved", "closed"]
     : ticket.status === "resolved" ? ["submitted", "closed"] : ["closed"];
-  const slaPercent = ticket.sla_percentage || 0;
+  
+  // Calculate SLA percentage
+  const now = new Date();
+  const createdAt = new Date(ticket.createdAt);
+  const slaDeadline = new Date(ticket.slaDeadline);
+  const total = slaDeadline - createdAt;
+  const elapsed = now - createdAt;
+  const slaPercent = total > 0 ? Math.min(100, Math.max(0, (elapsed / total) * 100)) : 0;
+  
   const slaColor = slaPercent < 50 ? "bg-emerald-500" : slaPercent < 75 ? "bg-amber-400" : "bg-red-500";
   const slaLabel = slaPercent < 50 ? "On Track" : slaPercent < 75 ? "Warning" : slaPercent >= 100 ? "Breached" : "Critical";
 
@@ -144,12 +169,12 @@ export default function TicketDetailPage() {
                   <span className="text-slate-300">|</span>
                   <span>{ticket.subcategory}</span>
                   <span className="text-slate-300">|</span>
-                  <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{ticket.created_by_name}</span>
+                  <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{ticket.userName}</span>
                   <span className="text-slate-300">|</span>
-                  <span>{new Date(ticket.created_at).toLocaleString()}</span>
+                  <span>{new Date(ticket.createdAt).toLocaleString()}</span>
                 </div>
-                {ticket.assigned_to_name && (
-                  <p className="text-xs text-blue-600 mt-2 font-semibold">Assigned to: {ticket.assigned_to_name}</p>
+                {ticket.assignedToName && (
+                  <p className="text-xs text-blue-600 mt-2 font-semibold">Assigned to: {ticket.assignedToName}</p>
                 )}
               </div>
             </div>
@@ -169,10 +194,10 @@ export default function TicketDetailPage() {
               <div className={cn("sla-bar", slaColor)} style={{ width: `${Math.min(100, slaPercent)}%` }} />
             </div>
             <div className="flex items-center justify-between mt-2">
-              <p className="text-[10px] text-slate-400">Deadline: {new Date(ticket.sla_deadline).toLocaleString()}</p>
-              {ticket.escalation_level > 1 && (
+              <p className="text-[10px] text-slate-400">Deadline: {new Date(ticket.slaDeadline).toLocaleString()}</p>
+              {ticket.escalationLevel > 1 && (
                 <span className="text-[10px] text-red-600 font-bold flex items-center gap-0.5">
-                  <AlertTriangle className="w-3 h-3" /> Escalation Level {ticket.escalation_level}
+                  <AlertTriangle className="w-3 h-3" /> Escalation Level {ticket.escalationLevel}
                 </span>
               )}
             </div>
@@ -186,16 +211,14 @@ export default function TicketDetailPage() {
         </div>
 
         {/* Photos */}
-        {ticket.photos?.length > 0 && (
+        {ticket.imageUrl && (
           <div className="card-premium p-5 mb-4 animate-fade-in-up animate-delay-200" data-testid="ticket-photos">
-            <h3 className="text-sm font-semibold text-slate-700 font-['Outfit'] mb-3">Attached Photos</h3>
+            <h3 className="text-sm font-semibold text-slate-700 font-['Outfit'] mb-3">Attached Photo</h3>
             <div className="flex flex-wrap gap-3">
-              {ticket.photos.map((p, i) => (
-                <div key={i} className="w-28 h-28 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 shadow-sm hover:shadow-md transition-shadow">
-                  <img src={`${BACKEND}/api/files/${p}`} alt={`Photo ${i + 1}`} className="w-full h-full object-cover"
-                    onError={(e) => { e.target.src = "https://via.placeholder.com/112?text=Photo"; }} />
-                </div>
-              ))}
+              <div className="w-28 h-28 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 shadow-sm hover:shadow-md transition-shadow">
+                <img src={ticket.imageUrl} alt="Complaint" className="w-full h-full object-cover"
+                  onError={(e) => { e.target.src = "https://via.placeholder.com/112?text=Photo"; }} />
+              </div>
             </div>
           </div>
         )}
@@ -248,15 +271,15 @@ export default function TicketDetailPage() {
                 )}
                 {messages.map(m => (
                   <div key={m.message_id}
-                    className={cn("p-3.5 rounded-xl text-sm", m.sender_id === user?.user_id ? "bg-blue-50/80 border border-blue-100/50 ml-8" : "bg-slate-50 border border-slate-100 mr-8")}
+                    className={cn("p-3.5 rounded-xl text-sm", m.senderId === user?.user_id ? "bg-blue-50/80 border border-blue-100/50 ml-8" : "bg-slate-50 border border-slate-100 mr-8")}
                     data-testid={`message-${m.message_id}`}>
                     <div className="flex items-center gap-2 mb-1.5">
                       <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600">
-                        {m.sender_name?.charAt(0)?.toUpperCase()}
+                        {m.senderName?.charAt(0)?.toUpperCase()}
                       </div>
-                      <span className="font-semibold text-xs text-slate-700">{m.sender_name}</span>
-                      <Badge variant="outline" className="text-[9px] rounded-md">{m.sender_role}</Badge>
-                      <span className="text-[10px] text-slate-400 ml-auto">{new Date(m.created_at).toLocaleString()}</span>
+                      <span className="font-semibold text-xs text-slate-700">{m.senderName}</span>
+                      <Badge variant="outline" className="text-[9px] rounded-md">{m.senderRole}</Badge>
+                      <span className="text-[10px] text-slate-400 ml-auto">{new Date(m.createdAt).toLocaleString()}</span>
                     </div>
                     <p className="text-slate-700 pl-8">{m.text}</p>
                   </div>

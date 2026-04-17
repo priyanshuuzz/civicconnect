@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 
 class CivicConnectAPITester:
-    def __init__(self, base_url="https://issue-tracker-319.preview.emergentagent.com"):
+    def __init__(self, base_url="http://localhost:8000"):
         self.base_url = base_url
         self.admin_token = None
         self.officer_token = None

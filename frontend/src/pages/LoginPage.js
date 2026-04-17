@@ -36,10 +36,18 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirectUrl = window.location.origin + "/dashboard";
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      const data = await googleAuth();
+      toast.success(`Welcome, ${data.name}!`);
+      if (data.role === "admin") navigate("/admin");
+      else if (data.role === "officer") navigate("/officer");
+      else navigate("/dashboard");
+    } catch (err) {
+      toast.error(err.message || "Google sign-in failed");
+      setLoading(false);
+    }
   };
 
   return (

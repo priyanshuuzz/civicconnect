@@ -1,5 +1,14 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import api from "@/lib/api";
+import { createContext, useContext, useState, useEffect } from "react";
+import { 
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged
+} from "firebase/auth";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db, googleProvider } from "@/firebase";
+import { setupNotifications, areNotificationsEnabled } from "@/lib/notifications";
 
 const AuthContext = createContext(null);
 
@@ -8,62 +17,170 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const checkAuth = useCallback(async () => {
-    try {
-      const res = await api.get("/auth/me");
-      setUser(res.data);
-      setIsAuthenticated(true);
-    } catch {
-      setUser(null);
-      setIsAuthenticated(false);
-    } finally {
+  useEffect(() => {
+    // Listen to Firebase auth state changes
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Fetch user data from Firestore
+        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (userDoc.exists()) {
+          const userData = {
+            user_id: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: firebaseUser.displayName || userDoc.data().name,
+            role: userDoc.data().role || "citizen",
+            phone: userDoc.data().phone || "",
+            picture: firebaseUser.photoURL || userDoc.data().picture || "",
+            ...userDoc.data()
+          };
+          setUser(userData);
+          setIsAuthenticated(true);
+
+          // Setup FCM notifications if not already enabled
+          if (!areNotificationsEnabled()) {
+            // Wait a bit before prompting for notifications (better UX)
+            setTimeout(() => {
+              setupNotifications(firebaseUser.uid).catch(err => {
+                console.error("Failed to setup notifications:", err);
+              });
+            }, 2000);
+          }
+        } else {
+          // User exists in Auth but not in Firestore (shouldn't happen)
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
       setLoading(false);
-    }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    // CRITICAL: If returning from OAuth callback, skip the /me check.
-    // AuthCallback will exchange the session_id and establish the session first.
-    if (window.location.hash?.includes("session_id=")) {
-      setLoading(false);
-      return;
+  const register = async ({ name, email, password, phone = "", role = "citizen" }) => {
+    try {
+      // Create Firebase Auth user
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // Create user document in Firestore
+      const userData = {
+        name,
+        email,
+        phone,
+        role,
+        picture: "",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await setDoc(doc(db, "users", firebaseUser.uid), userData);
+
+      return {
+        user_id: firebaseUser.uid,
+        email,
+        name,
+        role,
+        phone,
+        picture: ""
+      };
+    } catch (error) {
+      console.error("Registration error:", error);
+      throw error;
     }
-    checkAuth();
-  }, [checkAuth]);
+  };
 
   const login = async (email, password) => {
-    const res = await api.post("/auth/login", { email, password });
-    localStorage.setItem("token", res.data.token);
-    setUser(res.data);
-    setIsAuthenticated(true);
-    return res.data;
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // Fetch user data from Firestore
+      const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+      if (userDoc.exists()) {
+        return {
+          user_id: firebaseUser.uid,
+          email: firebaseUser.email,
+          name: userDoc.data().name,
+          role: userDoc.data().role,
+          phone: userDoc.data().phone || "",
+          picture: firebaseUser.photoURL || ""
+        };
+      }
+      throw new Error("User data not found");
+    } catch (error) {
+      console.error("Login error:", error);
+      throw error;
+    }
   };
 
-  const register = async (data) => {
-    const res = await api.post("/auth/register", data);
-    localStorage.setItem("token", res.data.token);
-    setUser(res.data);
-    setIsAuthenticated(true);
-    return res.data;
-  };
+  const googleAuth = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const firebaseUser = result.user;
 
-  const googleAuth = async (sessionId) => {
-    const res = await api.post("/auth/google-session", { session_id: sessionId });
-    localStorage.setItem("token", res.data.token);
-    setUser(res.data);
-    setIsAuthenticated(true);
-    return res.data;
+      // Check if user exists in Firestore
+      const userDocRef = doc(db, "users", firebaseUser.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        // Create new user document for first-time Google sign-in
+        const userData = {
+          name: firebaseUser.displayName || "",
+          email: firebaseUser.email,
+          phone: "",
+          role: "citizen",
+          picture: firebaseUser.photoURL || "",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+        await setDoc(userDocRef, userData);
+      }
+
+      return {
+        user_id: firebaseUser.uid,
+        email: firebaseUser.email,
+        name: firebaseUser.displayName || userDoc.data()?.name || "",
+        role: userDoc.data()?.role || "citizen",
+        phone: userDoc.data()?.phone || "",
+        picture: firebaseUser.photoURL || ""
+      };
+    } catch (error) {
+      console.error("Google auth error:", error);
+      throw error;
+    }
   };
 
   const logout = async () => {
-    try { await api.post("/auth/logout"); } catch {}
-    localStorage.removeItem("token");
-    setUser(null);
-    setIsAuthenticated(false);
+    try {
+      await signOut(auth);
+      setUser(null);
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error("Logout error:", error);
+      throw error;
+    }
+  };
+
+  const checkAuth = async () => {
+    // This is handled by onAuthStateChanged
+    return user;
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAuthenticated, login, register, googleAuth, logout, checkAuth }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      isAuthenticated, 
+      login, 
+      register, 
+      googleAuth, 
+      logout, 
+      checkAuth 
+    }}>
       {children}
     </AuthContext.Provider>
   );

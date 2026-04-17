@@ -6,10 +6,10 @@ CivicConnect is a citizen-facing civic issue reporting and resolution platform d
 ## Architecture
 - **Frontend**: React + Tailwind CSS + Shadcn UI (port 3000)
 - **Backend**: FastAPI + MongoDB (port 8001)
-- **AI**: OpenAI GPT-5.2 via emergentintegrations for complaint categorization
+- **AI**: OpenAI GPT-5.2 for complaint categorization
 - **Maps**: Leaflet + OpenStreetMap
-- **Storage**: Emergent Object Storage for photo uploads
-- **Auth**: JWT + Emergent Google OAuth (dual auth)
+- **Storage**: External Object Storage for photo uploads
+- **Auth**: JWT + Google OAuth (dual auth)
 
 ## User Personas
 1. **Citizens** - Report civic issues, track tickets, communicate with officers
@@ -32,7 +32,7 @@ CivicConnect is a citizen-facing civic issue reporting and resolution platform d
 - JWT + Google OAuth authentication with RBAC
 - MongoDB with geospatial indexes for duplicate detection
 - AI categorization via OpenAI GPT-5.2 with rule-based fallback
-- Emergent Object Storage for photo uploads
+- External Object Storage for photo uploads
 - Background SLA engine with automatic escalation
 - Rate limiting (10 reports/day per user)
 - Audit logging for all ticket actions

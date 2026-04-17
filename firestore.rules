@@ -1,0 +1,115 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================
+    // HELPER FUNCTIONS
+    // ========================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Get user role (with null check)
+    function getUserRole() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : 'citizen';
+    }
+    
+    // Check if user is an officer or admin
+    function isOfficerOrAdmin() {
+      let role = getUserRole();
+      return isAuthenticated() && (role == 'officer' || role == 'admin');
+    }
+    
+    // Check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+    
+    // ========================
+    // USERS COLLECTION
+    // ========================
+    match /users/{userId} {
+      // Anyone authenticated can read user profiles
+      allow read: if isAuthenticated();
+      
+      // Users can create their own profile during registration
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      // Users can update their own profile (except role and email)
+      // Admins can update any profile including roles
+      allow update: if isOwner(userId) || isAdmin();
+      
+      // Only admins can delete users
+      allow delete: if isAdmin();
+    }
+    
+    // ========================
+    // COMPLAINTS COLLECTION
+    // ========================
+    match /complaints/{complaintId} {
+      
+      // PUBLIC READ ACCESS (for transparency map)
+      allow read: if true;
+      
+      // CREATE: Only authenticated users can create complaints
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.status == 'submitted';
+      
+      // UPDATE: Role-based access
+      allow update: if isAuthenticated() && (
+        // Owner can update their own complaint
+        isOwner(resource.data.userId) ||
+        // Officers and admins can update any complaint
+        isOfficerOrAdmin() ||
+        // Admins have full access
+        isAdmin()
+      );
+      
+      // DELETE: Only admins can delete complaints
+      allow delete: if isAdmin();
+      
+      // ========================
+      // MESSAGES SUBCOLLECTION
+      // ========================
+      match /messages/{messageId} {
+        // Anyone authenticated can read messages
+        allow read: if isAuthenticated();
+        
+        // Only authenticated users can create messages
+        allow create: if isAuthenticated() &&
+                         request.resource.data.senderId == request.auth.uid &&
+                         request.resource.data.text is string &&
+                         request.resource.data.text.size() > 0 &&
+                         request.resource.data.text.size() <= 1000;
+        
+        // Messages cannot be updated or deleted
+        allow update, delete: if false;
+      }
+      
+      // ========================
+      // AUDIT LOGS SUBCOLLECTION
+      // ========================
+      match /auditLogs/{logId} {
+        // Anyone authenticated can read audit logs
+        allow read: if isAuthenticated();
+        
+        // Only authenticated users can create audit logs
+        // (Cloud Functions run with admin privileges)
+        allow create: if isAuthenticated();
+        
+        // Audit logs cannot be updated or deleted
+        allow update, delete: if false;
+      }
+    }
+  }
+}

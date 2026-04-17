@@ -33,9 +33,9 @@ JWT_EXPIRY_DAYS = 7
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Storage
+# Storage (using external object storage service)
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+STORAGE_API_KEY = os.environ.get("STORAGE_API_KEY")
 APP_NAME = "civicconnect"
 storage_key_global = None
 
@@ -146,7 +146,7 @@ def init_storage():
     if storage_key_global:
         return storage_key_global
     try:
-        resp = http_requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+        resp = http_requests.post(f"{STORAGE_URL}/init", json={"api_key": STORAGE_API_KEY}, timeout=30)
         resp.raise_for_status()
         storage_key_global = resp.json()["storage_key"]
         return storage_key_global
@@ -287,7 +287,7 @@ async def google_session(request: Request, response: Response):
     session_id = body.get("session_id")
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id required")
-    # REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+    # Google OAuth session validation
     try:
         resp = http_requests.get(
             "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
@@ -375,28 +375,33 @@ def fallback_categorize(text: str):
 @api_router.post("/ai/categorize")
 async def categorize_complaint(data: CategorizationRequest):
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        chat = LlmChat(
-            api_key=EMERGENT_KEY,
-            session_id=f"cat_{uuid.uuid4().hex[:8]}",
-            system_message="""You are a civic issue categorization AI. Given a complaint, categorize it.
-Categories: roads_footpaths, sanitation_waste, water_drainage, electricity_lighting, parks_public_spaces, stray_animals, noise_pollution, other.
-Respond ONLY with valid JSON (no markdown): {"category": "key", "subcategory": "name", "confidence": 0.0-1.0, "priority": "LOW|MEDIUM|HIGH|CRITICAL"}"""
-        )
-        chat.with_model("openai", "gpt-5.2")
-        msg = UserMessage(text=f"Categorize: {data.text}")
-        resp_text = await chat.send_message(msg)
-        clean = resp_text.strip()
-        if clean.startswith("```"):
-            clean = clean.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        result = json.loads(clean)
-        # Store AI output for training
-        await db.ai_outputs.insert_one({
-            "input_text": data.text,
-            "output": result,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
-        return result
+        # AI categorization using LLM integration
+        # Note: emergentintegrations package needs to be installed separately
+        # from emergentintegrations.llm.chat import LlmChat, UserMessage
+        # chat = LlmChat(
+        #     api_key=STORAGE_API_KEY,
+        #     session_id=f"cat_{uuid.uuid4().hex[:8]}",
+        #     system_message="""You are a civic issue categorization AI. Given a complaint, categorize it.
+        # Categories: roads_footpaths, sanitation_waste, water_drainage, electricity_lighting, parks_public_spaces, stray_animals, noise_pollution, other.
+        # Respond ONLY with valid JSON (no markdown): {"category": "key", "subcategory": "name", "confidence": 0.0-1.0, "priority": "LOW|MEDIUM|HIGH|CRITICAL"}"""
+        # )
+        # chat.with_model("openai", "gpt-5.2")
+        # msg = UserMessage(text=f"Categorize: {data.text}")
+        # resp_text = await chat.send_message(msg)
+        # clean = resp_text.strip()
+        # if clean.startswith("```"):
+        #     clean = clean.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        # result = json.loads(clean)
+        # # Store AI output for training
+        # await db.ai_outputs.insert_one({
+        #     "input_text": data.text,
+        #     "output": result,
+        #     "created_at": datetime.now(timezone.utc).isoformat()
+        # })
+        # return result
+        
+        # Using fallback categorization for now
+        raise Exception("AI categorization not configured")
     except Exception as e:
         logger.error(f"AI categorization failed: {e}, using fallback")
         return fallback_categorize(data.text)

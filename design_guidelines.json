@@ -67,11 +67,11 @@
   "media": {
     "images": {
       "hero_background": {
-        "url": "https://static.prod-images.emergentagent.com/jobs/fdad9098-60aa-47f5-ae43-4362a3d2e2c5/images/3a2a27f5e37795b480cb8f52a7e0e395e805bbe8638de052e339ab1883a32f9e.png",
+        "url": "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=1920",
         "description": "Aerial view of clean city intersection, use for public transparency map landing or main hero."
       },
       "map_abstract": {
-        "url": "https://static.prod-images.emergentagent.com/jobs/fdad9098-60aa-47f5-ae43-4362a3d2e2c5/images/31f49a0ada41ff95bc1ebf081cf603a3674286dbb7eee2cb706c112ab195ce87.png",
+        "url": "https://images.unsplash.com/photo-1569163139394-de4798aa62b6?w=1920",
         "description": "Abstract data node map, use for analytics dashboard hero or background texture."
       },
       "pothole_sample": {

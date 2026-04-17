@@ -1,10 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
-import AuthCallback from "@/pages/AuthCallback";
 import ReportIssuePage from "@/pages/ReportIssuePage";
 import CitizenDashboard from "@/pages/CitizenDashboard";
 import TicketDetailPage from "@/pages/TicketDetailPage";
@@ -13,6 +12,17 @@ import OfficerDashboard from "@/pages/OfficerDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import { Toaster } from "@/components/ui/sonner";
 import "@/App.css";
+
+// Import Firebase debug utility
+import { validateFirebaseSetup } from "@/lib/firebaseDebug";
+
+// Validate Firebase on app load
+validateFirebaseSetup().then(results => {
+  if (!results.initialized) {
+    console.error("⚠️ Firebase initialization issues detected!");
+    console.error("Errors:", results.errors);
+  }
+});
 
 function ProtectedRoute({ children, roles }) {
   const { user, loading, isAuthenticated } = useAuth();
@@ -32,11 +42,6 @@ function ProtectedRoute({ children, roles }) {
 }
 
 function AppRouter() {
-  const location = useLocation();
-  // CRITICAL: Check URL fragment for session_id synchronously during render
-  if (location.hash?.includes("session_id=")) {
-    return <AuthCallback />;
-  }
   return (
     <>
       <Navbar />

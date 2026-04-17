@@ -29,7 +29,7 @@ export default function LandingPage() {
       <section className="relative overflow-hidden" data-testid="hero-section">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
         <div className="absolute inset-0 opacity-15 bg-cover bg-center"
-          style={{ backgroundImage: `url(https://static.prod-images.emergentagent.com/jobs/fdad9098-60aa-47f5-ae43-4362a3d2e2c5/images/3a2a27f5e37795b480cb8f52a7e0e395e805bbe8638de052e339ab1883a32f9e.png)` }} />
+          style={{ backgroundImage: `url(https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=1920)` }} />
         {/* Decorative grid pattern */}
         <div className="absolute inset-0 opacity-5" style={{
           backgroundImage: 'linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)',

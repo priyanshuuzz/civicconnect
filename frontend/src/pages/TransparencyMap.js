@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import api from "@/lib/api";
+import { getMapComplaints } from "@/lib/firebaseService";
 import L from "@/lib/leaflet-setup";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +39,14 @@ function FitBounds({ tickets }) {
   const map = useMap();
   useEffect(() => {
     if (tickets.length > 0) {
-      const bounds = L.latLngBounds(tickets.map(t => [t.location.coordinates[1], t.location.coordinates[0]]));
+      const bounds = L.latLngBounds(tickets.map(t => {
+        // Handle GeoPoint format
+        if (t.location._lat !== undefined && t.location._long !== undefined) {
+          return [t.location._lat, t.location._long];
+        }
+        // Handle coordinates array
+        return [t.location.coordinates[1], t.location.coordinates[0]];
+      }));
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
     }
   }, [tickets, map]);
@@ -56,19 +63,48 @@ export default function TransparencyMap() {
     const fetchTickets = async () => {
       setLoading(true);
       try {
-        const params = {};
-        if (categoryFilter !== "all") params.category = categoryFilter;
-        if (statusFilter !== "all") params.status = statusFilter;
-        const res = await api.get("/map/tickets", { params });
-        setTickets(res.data.tickets);
-      } catch { setTickets([]); }
-      finally { setLoading(false); }
+        const filters = {};
+        if (categoryFilter !== "all") filters.category = categoryFilter;
+        if (statusFilter !== "all") filters.status = statusFilter;
+        
+        const complaints = await getMapComplaints(filters);
+        setTickets(complaints);
+      } catch (error) {
+        console.error("Failed to fetch map tickets:", error);
+        setTickets([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchTickets();
   }, [categoryFilter, statusFilter]);
 
-  const filteredTickets = useMemo(() => tickets.filter(t => t.location?.coordinates?.length === 2), [tickets]);
-  const breachedCount = filteredTickets.filter(t => t.sla_percentage >= 100).length;
+  const filteredTickets = useMemo(() => {
+    return tickets.filter(t => {
+      // Check if location exists and has valid coordinates
+      if (!t.location) return false;
+      
+      // Handle GeoPoint format from Firestore
+      if (t.location._lat !== undefined && t.location._long !== undefined) {
+        return true;
+      }
+      
+      // Handle coordinates array format
+      if (t.location.coordinates && Array.isArray(t.location.coordinates) && t.location.coordinates.length === 2) {
+        return true;
+      }
+      
+      return false;
+    });
+  }, [tickets]);
+  
+  // Calculate SLA breached count
+  const now = new Date();
+  const breachedCount = filteredTickets.filter(t => {
+    const slaDeadline = new Date(t.slaDeadline);
+    return now > slaDeadline;
+  }).length;
+  
   const openCount = filteredTickets.filter(t => ["submitted", "assigned", "in_progress"].includes(t.status)).length;
 
   return (
@@ -133,31 +169,56 @@ export default function TransparencyMap() {
         <MapContainer center={[28.4089, 77.3178]} zoom={12} style={{ height: "calc(100vh - 64px - 60px)", width: "100%" }} scrollWheelZoom={true}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
           {filteredTickets.length > 0 && <FitBounds tickets={filteredTickets} />}
-          {filteredTickets.map(t => (
-            <Marker key={t.ticket_id} position={[t.location.coordinates[1], t.location.coordinates[0]]} icon={createCategoryIcon(t.category, t.priority)}>
-              <Popup>
-                <div className="min-w-[200px] p-1" data-testid={`map-popup-${t.ticket_id}`}>
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <Badge variant="outline" className={cn("text-[9px] rounded-md", `status-${t.status}`)}>{t.status?.replace("_", " ")}</Badge>
-                    <Badge variant="outline" className={cn("text-[9px] rounded-md", `priority-${t.priority}`)}>{t.priority}</Badge>
-                  </div>
-                  <p className="font-semibold text-sm text-slate-900">{t.title}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{CATEGORY_LABELS[t.category]} &middot; {t.subcategory}</p>
-                  {t.address && <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-0.5"><MapPin className="w-3 h-3" />{t.address}</p>}
-                  <p className="text-[10px] text-slate-400 mt-1.5">{new Date(t.created_at).toLocaleDateString()}</p>
-                  {t.sla_percentage > 0 && (
-                    <div className="mt-2">
-                      <div className="sla-track h-1.5">
-                        <div className={cn("sla-bar", t.sla_percentage < 50 ? "bg-emerald-500" : t.sla_percentage < 75 ? "bg-amber-400" : "bg-red-500")}
-                          style={{ width: `${Math.min(100, t.sla_percentage)}%` }} />
-                      </div>
-                      <p className="text-[9px] text-slate-400 mt-0.5">SLA: {Math.round(t.sla_percentage)}%</p>
+          {filteredTickets.map(t => {
+            // Extract lat/lng from GeoPoint or coordinates array
+            let lat, lng;
+            if (t.location._lat !== undefined && t.location._long !== undefined) {
+              lat = t.location._lat;
+              lng = t.location._long;
+            } else if (t.location.coordinates) {
+              lng = t.location.coordinates[0];
+              lat = t.location.coordinates[1];
+            }
+            
+            return (
+              <Marker key={t.ticket_id} position={[lat, lng]} icon={createCategoryIcon(t.category, t.priority)}>
+                <Popup>
+                  <div className="min-w-[200px] p-1" data-testid={`map-popup-${t.ticket_id}`}>
+                    <div className="flex items-center gap-1 mb-1.5">
+                      <Badge variant="outline" className={cn("text-[9px] rounded-md", `status-${t.status}`)}>{t.status?.replace("_", " ")}</Badge>
+                      <Badge variant="outline" className={cn("text-[9px] rounded-md", `priority-${t.priority}`)}>{t.priority}</Badge>
                     </div>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+                    <p className="font-semibold text-sm text-slate-900">{t.title}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{CATEGORY_LABELS[t.category]} &middot; {t.subcategory}</p>
+                    {t.address && <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-0.5"><MapPin className="w-3 h-3" />{t.address}</p>}
+                    <p className="text-[10px] text-slate-400 mt-1.5">{new Date(t.createdAt).toLocaleDateString()}</p>
+                    {t.slaDeadline && (
+                      <div className="mt-2">
+                        {(() => {
+                          const now = new Date();
+                          const created = new Date(t.createdAt);
+                          const deadline = new Date(t.slaDeadline);
+                          const total = deadline - created;
+                          const elapsed = now - created;
+                          const slaPercent = total > 0 ? Math.min(100, Math.max(0, (elapsed / total) * 100)) : 0;
+                          
+                          return (
+                            <>
+                              <div className="sla-track h-1.5">
+                                <div className={cn("sla-bar", slaPercent < 50 ? "bg-emerald-500" : slaPercent < 75 ? "bg-amber-400" : "bg-red-500")}
+                                  style={{ width: `${Math.min(100, slaPercent)}%` }} />
+                              </div>
+                              <p className="text-[9px] text-slate-400 mt-0.5">SLA: {Math.round(slaPercent)}%</p>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
         </MapContainer>
 
         {/* Legend Card */}

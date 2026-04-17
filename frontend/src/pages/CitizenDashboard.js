@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import api from "@/lib/api";
+import { subscribeToComplaints } from "@/lib/firebaseService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,7 @@ const CATEGORY_COLORS = {
   parks_public_spaces: "bg-emerald-50 text-emerald-600", stray_animals: "bg-pink-50 text-pink-600",
   noise_pollution: "bg-slate-100 text-slate-600", other: "bg-purple-50 text-purple-600",
 };
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
+// Removed BACKEND constant - using Firebase Storage URLs now
 
 function SkeletonCard() {
   return (
@@ -65,9 +65,16 @@ function StatCard({ label, value, icon: Icon, accentClass, delay }) {
 function TicketCard({ ticket, idx }) {
   const CatIcon = CATEGORY_ICONS[ticket.category] || HelpCircle;
   const catColor = CATEGORY_COLORS[ticket.category] || "bg-slate-100 text-slate-600";
-  const slaPercent = ticket.sla_percentage || 0;
+  
+  // Calculate SLA percentage
+  const now = new Date();
+  const createdAt = new Date(ticket.createdAt);
+  const slaDeadline = new Date(ticket.slaDeadline);
+  const total = slaDeadline - createdAt;
+  const elapsed = now - createdAt;
+  const slaPercent = total > 0 ? Math.min(100, Math.max(0, (elapsed / total) * 100)) : 0;
+  
   const slaColor = slaPercent < 50 ? "bg-emerald-500" : slaPercent < 75 ? "bg-amber-400" : "bg-red-500";
-  const hasPhoto = ticket.photos?.length > 0;
 
   return (
     <Link
@@ -118,16 +125,16 @@ function TicketCard({ ticket, idx }) {
 
             <div className="flex items-center justify-between mt-2.5">
               <span className="text-[10px] text-slate-400 font-mono">{ticket.ticket_id}</span>
-              <span className="text-[10px] text-slate-400">{new Date(ticket.created_at).toLocaleDateString()}</span>
+              <span className="text-[10px] text-slate-400">{new Date(ticket.createdAt).toLocaleDateString()}</span>
             </div>
           </div>
 
           {/* Photo preview + chevron */}
           <div className="flex flex-col items-end gap-2 shrink-0">
-            {hasPhoto && (
+            {ticket.imageUrl && (
               <div className="w-14 h-14 rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
                 <img
-                  src={`${BACKEND}/api/files/${ticket.photos[0]}`}
+                  src={ticket.imageUrl}
                   alt=""
                   className="w-full h-full object-cover"
                   onError={(e) => { e.target.style.display = 'none'; }}
@@ -151,24 +158,43 @@ export default function CitizenDashboard() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
+  // Paginate tickets client-side
+  const paginatedTickets = tickets.slice((page - 1) * 20, page * 20);
+
   useEffect(() => {
-    const fetchTickets = async () => {
-      setLoading(true);
-      try {
-        const params = { page, limit: 20 };
-        if (statusFilter !== "all") params.status = statusFilter;
-        const res = await api.get("/tickets", { params });
-        setTickets(res.data.tickets);
-        setTotalPages(res.data.pages);
-        setTotal(res.data.total);
-      } catch { setTickets([]); }
-      finally { setLoading(false); }
+    if (!user?.user_id) return;
+
+    setLoading(true);
+
+    // Build filters for real-time subscription
+    const filters = {
+      userId: user.user_id,
+      limit: 100 // Get all user complaints for client-side filtering
     };
-    fetchTickets();
-  }, [statusFilter, page]);
+
+    if (statusFilter !== "all") {
+      filters.status = statusFilter;
+    }
+
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToComplaints(filters, (complaints) => {
+      setTickets(complaints);
+      setTotal(complaints.length);
+      setTotalPages(Math.ceil(complaints.length / 20));
+      setLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [statusFilter, user]);
 
   const activeCount = tickets.filter(t => !["resolved", "closed"].includes(t.status)).length;
-  const breachedCount = tickets.filter(t => t.sla_percentage >= 100 && !["resolved", "closed"].includes(t.status)).length;
+  const breachedCount = tickets.filter(t => {
+    if (["resolved", "closed"].includes(t.status)) return false;
+    const now = new Date();
+    const slaDeadline = new Date(t.slaDeadline);
+    return now > slaDeadline;
+  }).length;
   const resolvedCount = tickets.filter(t => t.status === "resolved" || t.status === "closed").length;
 
   return (
@@ -228,11 +254,11 @@ export default function CitizenDashboard() {
           </div>
         ) : (
           <div className="flex flex-col gap-4" data-testid="ticket-list">
-            {tickets.map((t, idx) => <TicketCard key={t.ticket_id} ticket={t} idx={idx} />)}
+            {paginatedTickets.map((t, idx) => <TicketCard key={t.ticket_id} ticket={t} idx={idx} />)}
           </div>
         )}
 
-        {/* Pagination */}
+        {/* Pagination - Client-side pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-3 mt-8">
             <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>

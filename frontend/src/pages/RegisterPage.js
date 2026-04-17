@@ -8,7 +8,7 @@ import { MapPin, Mail, Lock, User, Phone, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function RegisterPage() {
-  const { register, isAuthenticated } = useAuth();
+  const { register, googleAuth, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
   const [loading, setLoading] = useState(false);
@@ -30,16 +30,25 @@ export default function RegisterPage() {
       toast.success("Account created! Welcome to CivicConnect.");
       navigate("/dashboard");
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Registration failed");
+      const errorMessage = err.code === 'auth/email-already-in-use' 
+        ? "Email already registered" 
+        : err.message || "Registration failed";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleRegister = () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirectUrl = window.location.origin + "/dashboard";
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  const handleGoogleRegister = async () => {
+    setLoading(true);
+    try {
+      await googleAuth();
+      toast.success("Welcome to CivicConnect!");
+      navigate("/dashboard");
+    } catch (err) {
+      toast.error(err.message || "Google sign-in failed");
+      setLoading(false);
+    }
   };
 
   return (
